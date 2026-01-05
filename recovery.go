@@ -4,11 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"image/color"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
-	"encoding/json"
+
 	"github.com/kercre123/vector-gobot/pkg/vbody"
 	"github.com/kercre123/vector-gobot/pkg/vscreen"
 )
@@ -36,17 +37,7 @@ type List struct {
 
 type OTA struct {
 	Name string
-	URL string
-}
-
-var availableOTAs []OTA
-
-func LoadOTAConfig() error {
-    data, err := os.ReadFile("/data/vic-menu/ota-list.json")
-    if err != nil {
-        return err
-    }
-    return json.Unmarshal(data, &availableOTAs)
+	URL  string
 }
 
 func (c *List) MoveDown() {
@@ -197,46 +188,58 @@ func StartAnki_Confirm() {
 }
 
 func StartAnki() {
-	scrnData := vscreen.CreateTextImage("To come back to this menu, go to CCIS and select `MENU` or `BACK TO MENU`. Starting in 3 seconds...")
-	vscreen.SetScreen(scrnData)
-	time.Sleep(time.Second * 4)
-	scrnData = vscreen.CreateTextImage("Stopping body...")
-	vscreen.SetScreen(scrnData)
-	CurrentList.inited = false
-	time.Sleep(time.Second / 3)
-	StopFrameGetter()
-	vbody.StopSpine()
-	scrnData = vscreen.CreateTextImage("Starting anki-robot...")
-	vscreen.SetScreen(scrnData)
-	vscreen.StopLCD()
-	ScreenInited = false
-	BodyInited = false
+	// scrnData := vscreen.CreateTextImage("To come back to this menu, go to CCIS and select `MENU` or `BACK TO MENU`. Starting in 3 seconds...")
+	// vscreen.SetScreen(scrnData)
+	// time.Sleep(time.Second * 4)
+	// scrnData = vscreen.CreateTextImage("Stopping body...")
+	// vscreen.SetScreen(scrnData)
+	// CurrentList.inited = false
+	// time.Sleep(time.Second / 3)
+	// StopFrameGetter()
+	// vbody.StopSpine()
+	// scrnData := vscreen.CreateTextImage("Grabbing logs")
+	// vscreen.SetScreen(scrnData)
+	// vscreen.StopLCD()
+	// ScreenInited = false
+	// BodyInited = false
 	time.Sleep(time.Second / 2)
-	exec.Command("/bin/bash", "-c", "systemctl start anki-robot.target").Run()
-	// watch logcat for clear user data screen
-	cmd := exec.Command("logcat", "-T", "1")
+	// exec.Command("/bin/bash", "-c", "systemctl start anki-robot.target").Run()
+	// watch logcat for clear user data screen // journalctl since we don't have logcat
+	cmd := exec.Command("journalctl", "-f", "-n", "10")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
-		//09-17 15:51:52.178  2040  2040 D vic-anim: [@FaceInfoScreenManager] FaceInfoScreenManager.SetScreen.EnteringScreen: (tc5185) : 5
-		if strings.Contains(line, "FaceInfoScreenManager.SetScreen.EnteringScreen") {
-			if strings.Contains(line, " : 5") {
-				break
-			}
+
+		scrnData := vscreen.CreateTextImage(line)
+
+		vscreen.SetScreen(scrnData)
+
+		RandomLights()
+		if strings.Contains(line, "Starting Victor init") {
+			break
 		}
 	}
-	exec.Command("/bin/bash", "-c", "systemctl stop anki-robot.target").Run()
-	time.Sleep(time.Second)
-	CurrentList = Recovery_Create()
-	CurrentList.Init()
+
+	scrnData := vscreen.CreateTextImage("Starting Vector processes")
+	vscreen.SetScreen(scrnData)
+
+	vbody.StopSpine()
+	vscreen.StopLCD()
+	ScreenInited = false
+	BodyInited = false
+	os.Exit(0)
 }
 
-func StartRescue_Confirm() {
-	c := *CurrentList
-	CurrentList = Confirm_Create_Anki(StartRescue, c)
-	CurrentList.Init()
+func RandomLights() {
+	colors := []uint32{vbody.LED_BLUE, vbody.LED_GREEN, vbody.LED_RED, vbody.LED_OFF}
+
+	color1 := colors[rand.Intn(len(colors))]
+	color2 := colors[rand.Intn(len(colors))]
+	color3 := colors[rand.Intn(len(colors))]
+
+	vbody.SetLEDs(color1, color2, color3)
 }
 
 func StartRescue() {
@@ -335,71 +338,6 @@ func ClearUserData_Create() *List {
 	return &Reboot
 }
 
-func InstallSelectedOTA(url string) {
-	HangBody = true
-	if ssid, _, _ := getNet(); ssid == "<not connected>" {
-		scrnData := vscreen.CreateTextImage("The robot must first be connected to Wi-Fi.")
-		vscreen.SetScreen(scrnData)
-		time.Sleep(time.Second * 3)
-		CurrentList = Recovery_Create()
-		CurrentList.Init()
-		HangBody = false
-		return
-	}
-	err := StreamOTA(url)
-	if err != nil {
-		fmt.Println(err)
-		if strings.Contains(err.Error(), "button") {
-			CurrentList = Recovery_Create()
-			CurrentList.Init()
-			time.Sleep(time.Second / 3)
-			HangBody = false
-		} else {
-			scrnData := vscreen.CreateTextImage("Error downloading OTA: " + err.Error())
-			vscreen.SetScreen(scrnData)
-			time.Sleep(time.Second * 3)
-			CurrentList = Recovery_Create()
-			CurrentList.Init()
-			HangBody = false
-		}
-	} else {
-		HangBody = false
-		CurrentList = Reboot_Create()
-		CurrentList.Init()
-		time.Sleep(time.Second / 3)
-	}
-}
-
-func CheckNetwork() bool {
-	ssid, _, _ := getNet()
-	if ssid == "<not connected>" {
-		HangBody = true
-		scrnData := vscreen.CreateTextImage("The robot must first be connected to Wi-Fi.")
-		vscreen.SetScreen(scrnData)
-		time.Sleep(time.Second * 3)
-		HangBody = false
-		return false
-	}
-	return true
-}
-
-func getNet() (ssid string, ip string, mac string) {
-	out, _ := exec.Command("/bin/bash", "-c", "iwgetid").Output()
-	macaddr, _ := exec.Command("/bin/bash", "-c", `/sbin/ifconfig wlan0 | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'`).Output()
-	iwcmd := strings.TrimSpace(string(out))
-	if !strings.Contains(iwcmd, "ESSID") {
-		ssid = "<not connected>"
-		ip = "<not connected>"
-		mac = strings.TrimSpace(string(macaddr))
-	} else {
-		ssid = strings.Replace(strings.TrimSpace(strings.Split(iwcmd, "ESSID:")[1]), `"`, "", -1)
-		out, _ = exec.Command("/bin/bash", "-c", `/sbin/ifconfig wlan0 | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'`).Output()
-		ip = strings.TrimSpace(string(out))
-		mac = strings.TrimSpace(string(macaddr))
-	}
-	return ssid, ip, mac
-}
-
 func DetectButtonPress() {
 	// for functions which show on screen, but aren't lists. hangs ListenToBody, returns when button is presed
 	for {
@@ -412,67 +350,19 @@ func DetectButtonPress() {
 
 }
 
-func PrintNetworkInfo() {
-	c := *CurrentList
-	ssid, ip, mac := getNet()
-	lines := []string{"SSID: " + ssid, "IP: " + ip, "MAC: " + mac, " ", " ", "> Back"}
-	scrnData := vscreen.CreateTextImageFromSlice(lines)
-	vscreen.SetScreen(scrnData)
-	HangBody = true
-	time.Sleep(time.Second / 3)
-	DetectButtonPress()
-	CurrentList = &c
-	CurrentList.Init()
-	time.Sleep(time.Second / 3)
-	HangBody = false
-}
-
-func Rebooter() {
-	CurrentList = Reboot_Create()
-	CurrentList.Init()
-}
-
-func ClearUserData() {
-	CurrentList = ClearUserData_Create()
-	CurrentList.Init()
-}
-
 func Recovery_Create() *List {
 	var Test List
 
-	Test.Info = "Frog's Recovery Menu"
+	Test.Info = "impl"
 	Test.InfoColor = color.RGBA{0, 255, 0, 255}
 
 	Test.ClickFunc = []func(){
-       StartAnki_Confirm,
-       ClearUserData,
-       PrintNetworkInfo,
-       Rebooter,
-       func() {
-        	CurrentList = ShowOTAList_Create()
-        	CurrentList.Init()
-       },
-   	} 
+		StartAnki_Confirm,
+	}
 
 	Test.Lines = []vscreen.Line{
 		{
-			Text:  "Start anki-robot",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "Clear user data",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "Print network info",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "Reboot to system_a",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "Install OTAs",
+			Text:  "Watch logs",
 			Color: color.RGBA{255, 255, 255, 255},
 		},
 	}
@@ -484,7 +374,7 @@ func Confirm_Create_Anki(do func(), origList List) *List {
 	// "ARE YOU SURE?"
 	var Test List
 
-	Test.Info = "Start anki-robot?"
+	Test.Info = "See logs?"
 	Test.InfoColor = color.RGBA{0, 255, 0, 255}
 	Test.ClickFunc = []func(){do, func() {
 		CurrentList = &origList
@@ -530,160 +420,6 @@ func Confirm_Install_OTA(do func(), origList List) *List {
 	return &Test
 }
 
-func RefreshOTAListAlt() error {
-	os.Remove("/data/vic-menu/ota-list.json")
-	os.MkdirAll("/data/vic-menu/", 0755)
-
-	cmd := exec.Command("curl", "-o", "/data/vic-menu/ota-list.json", "api.froggitti.net/ota-list.json")
-	return cmd.Run()
-}
-
-func RefreshOTAList() {
-	HangBody = true
-	scrnData := vscreen.CreateTextImage("Refreshing OTA list...")
-	vscreen.SetScreen(scrnData)
-	
-	var err error
-	
-	if _, statErr := os.Stat("/usr/bin/update-ota-list"); statErr == nil {
-		cmd := exec.Command("/usr/bin/update-ota-list")
-		err = cmd.Run()
-	} else {
-		err = RefreshOTAListAlt()
-	}
-	
-	if err != nil {
-		scrnData = vscreen.CreateTextImage("Error refreshing: " + err.Error())
-		vscreen.SetScreen(scrnData)
-		time.Sleep(time.Second * 3)
-	} else {
-		scrnData = vscreen.CreateTextImage("OTA list refreshed!")
-		vscreen.SetScreen(scrnData)
-		time.Sleep(time.Second)
-	}
-	
-	availableOTAs = nil
-	if err := LoadOTAConfig(); err != nil {
-		scrnData = vscreen.CreateTextImage("Error loading: " + err.Error())
-		vscreen.SetScreen(scrnData)
-		time.Sleep(time.Second * 3)
-	}
-	
-	HangBody = false
-}
-
-func ShowOTAListPage(page int) *List {
-    const perPage = 2
-    total := len(availableOTAs)
-    start := page * perPage
-    end := start + perPage
-    if end > total {
-        end = total
-    }
-
-    var l List
-    l.Info = fmt.Sprintf("OTAs %d-%d of %d", start+1, end, total)
-    l.InfoColor = color.RGBA{0, 255, 0, 255}
-
-    // show this page's OTAs
-    for _, ota := range availableOTAs[start:end] {
-        url := ota.URL
-        l.ClickFunc = append(l.ClickFunc, func() {
-            CurrentList = Confirm_Install_OTA(func() {
-                InstallSelectedOTA(url)
-            }, *CurrentList)
-            CurrentList.Init()
-        })
-        l.Lines = append(l.Lines, vscreen.Line{
-            Text:  ota.Name,
-            Color: color.RGBA{255, 255, 255, 255},
-        })
-    }
-
-    // Prev button?
-    if page > 0 {
-        prev := page - 1
-        l.ClickFunc = append(l.ClickFunc, func() {
-            CurrentList = ShowOTAListPage(prev)
-            CurrentList.Init()
-        })
-        l.Lines = append(l.Lines, vscreen.Line{
-            Text:  "< Prev",
-            Color: color.RGBA{255, 255, 255, 255},
-        })
-    }
-
-    // Next button?
-    if end < total {
-        next := page + 1
-        l.ClickFunc = append(l.ClickFunc, func() {
-            CurrentList = ShowOTAListPage(next)
-            CurrentList.Init()
-        })
-        l.Lines = append(l.Lines, vscreen.Line{
-            Text:  "Next >",
-            Color: color.RGBA{255, 255, 255, 255},
-        })
-    }
-
-    // Back to main recovery menu
-    l.ClickFunc = append(l.ClickFunc, func() {
-        CurrentList = Recovery_Create()
-        CurrentList.Init()
-    })
-    l.Lines = append(l.Lines, vscreen.Line{
-        Text:  "Exit",
-        Color: color.RGBA{255, 255, 255, 255},
-    })
-
-    return &l
-}
-
-// entry point remains page 0
-func ShowOTAList_Create() *List {
-
-	if !CheckNetwork() {
-		CurrentList = Recovery_Create()
-		CurrentList.Init()
-		return CurrentList
-	}
-
-	RefreshOTAList()
-	if availableOTAs == nil {
-        if err := LoadOTAConfig(); err != nil {
-            // show an error and return to recovery
-            var errList List
-            errList.Info = "Error loading OTA list"
-            errList.InfoColor = color.RGBA{255, 0, 0, 255}
-            errList.Lines = []vscreen.Line{
-				{Text: err.Error(), Color: errList.InfoColor},
-                {Text: "Refresh and Try Again",   Color: color.RGBA{255, 255, 255, 255}},
-                {Text: "Refresh OTAs",   Color: color.RGBA{255, 255, 255, 255}},
-                {Text: "Back",       Color: color.RGBA{255, 255, 255, 255}},
-            }
-            errList.ClickFunc = []func(){
-                func() {
-                    CurrentList = Recovery_Create()
-                    CurrentList.Init()
-                },
-                func() {
-					CurrentList = ShowOTAListPage(0)
-					CurrentList.Init()
-                },
-                func() {
-                    RefreshOTAList()
-                },
-                func() {
-                    CurrentList = Recovery_Create()
-                    CurrentList.Init()
-                },
-            }
-            return &errList
-        }
-    }
-    return ShowOTAListPage(0)
-}
-
 func TestIfBodyWorking() {
 	// if body isn't working, start anki processes
 	err := vbody.InitSpine()
@@ -702,19 +438,23 @@ func TestIfBodyWorking() {
 }
 
 func main() {
-	TestIfBodyWorking()
-	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_OFF, vbody.LED_OFF)
-	vbody.SetMotors(0, 0, -100, -100)
-	time.Sleep(time.Second * 2)
-	vbody.SetMotors(0, 0, 0, 0)
+	vbody.InitSpine()
+	BodyInited = true
+
+	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_OFF, vbody.LED_RED)
 	time.Sleep(time.Second)
-	vbody.SetMotors(0, 0, 0, 150)
-	go func() {
-		time.Sleep(time.Second * 2)
-		vbody.SetMotors(0, 0, 0, 0)
-	}()
+	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_GREEN, vbody.LED_RED)
+	time.Sleep(time.Second)
+	vbody.SetLEDs(vbody.LED_BLUE, vbody.LED_GREEN, vbody.LED_RED)
 	CurrentList = Recovery_Create()
+
+	vscreen.InitLCD()
+	vscreen.BlackOut()
+	ScreenInited = true
+
+	StartAnki()
 	CurrentList.Init()
+	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_OFF, vbody.LED_OFF)
 	fmt.Println("started")
 	InitFrameGetter()
 	ListenToBody()
