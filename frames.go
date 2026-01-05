@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kercre123/vector-gobot/pkg/vbody"
+	"github.com/os-vector/vector-gobot/pkg/vbody"
 )
 
 // recreate GetFrame

@@ -10,17 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kercre123/vector-gobot/pkg/vbody"
-	"github.com/kercre123/vector-gobot/pkg/vscreen"
+	"github.com/os-vector/vector-gobot/pkg/vbody"
+	"github.com/os-vector/vector-gobot/pkg/vscreen"
 )
 
-// program which will run in recovery partition
+// program which will display logs on boot
 
 var CurrentList *List
 var ScreenInited bool
 var BodyInited bool
-var MaxTM uint32
-var MinTM uint32
 var StopListening bool
 var HangBody bool
 
@@ -35,11 +33,6 @@ type List struct {
 	inited    bool
 }
 
-type OTA struct {
-	Name string
-	URL  string
-}
-
 func (c *List) MoveDown() {
 	if c.Len == c.Position {
 		c.Position = 1
@@ -47,11 +40,6 @@ func (c *List) MoveDown() {
 		c.Position = c.Position + 1
 	}
 	c.UpdateScreen()
-}
-
-func (c *List) MoveUp() {
-	// i'm not sure how to determine direction from the encoders, so i am doing always down
-	fmt.Println("up")
 }
 
 func (c *List) UpdateScreen() {
@@ -181,13 +169,7 @@ func ListenToBody() {
 	}
 }
 
-func StartAnki_Confirm() {
-	c := *CurrentList
-	CurrentList = Confirm_Create_Anki(StartAnki, c)
-	CurrentList.Init()
-}
-
-func StartAnki() {
+func StartLogging() {
 	// scrnData := vscreen.CreateTextImage("To come back to this menu, go to CCIS and select `MENU` or `BACK TO MENU`. Starting in 3 seconds...")
 	// vscreen.SetScreen(scrnData)
 	// time.Sleep(time.Second * 4)
@@ -242,199 +224,12 @@ func RandomLights() {
 	vbody.SetLEDs(color1, color2, color3)
 }
 
-func StartRescue() {
-	KillButtonDetect := false
-	// rescue can crash, often
-	HangBody = true
-	scrnData := vscreen.CreateTextImage("vic-rescue will start in 3 seconds. Press the button anytime to return to the menu.")
-	vscreen.SetScreen(scrnData)
-	vscreen.StopLCD()
-	ScreenInited = false
-	time.Sleep(time.Second * 3)
-	cmd := exec.Command("/bin/bash", "-c", "/anki/bin/vic-rescue")
-	go func() {
-		for {
-			frame := GetFrame()
-			if frame.ButtonState || KillButtonDetect {
-				break
-			}
-			time.Sleep(time.Millisecond * 10)
-		}
-		fmt.Println("killing rescue")
-		cmd.Process.Kill()
-	}()
-	cmd.Run()
-	CurrentList = Recovery_Create()
-	CurrentList.Init()
-	time.Sleep(time.Second / 3)
-	HangBody = false
-}
-
-func Reboot_Do() {
-	exec.Command("/bin/bash", "-c", "bootctl f set_active a")
-	scrnData := vscreen.CreateTextImage("Rebooting...")
-	vscreen.SetScreen(scrnData)
-	StopListening = true
-	time.Sleep(time.Second / 2)
-	vbody.StopSpine()
-	vscreen.StopLCD()
-	exec.Command("/bin/bash", "-c", "reboot").Run()
-}
-
-func Reboot_Create() *List {
-	// "ARE YOU SURE?"
-	var Reboot List
-
-	Reboot.Info = "Reboot?"
-	Reboot.InfoColor = color.RGBA{0, 255, 0, 255}
-	Reboot.ClickFunc = []func(){Reboot_Do, func() {
-		CurrentList = Recovery_Create()
-		CurrentList.Init()
-	}}
-
-	Reboot.Lines = []vscreen.Line{
-		{
-			Text:  "Yes",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "No",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-	}
-
-	return &Reboot
-}
-
-func ClearUserData_Do() {
-	vscreen.SetScreen(vscreen.CreateTextImage("Clearing User Data..."))
-	exec.Command("/bin/bash", "-c", "blkdiscard -s /dev/block/bootdevice/by-name/userdata").Run()
-	exec.Command("/bin/bash", "-c", "blkdiscard -s /dev/block/bootdevice/by-name/switchboard").Run()
-	Reboot_Do()
-}
-
-func ClearUserData_Create() *List {
-	// "ARE YOU SURE?"
-	var Reboot List
-
-	Reboot.Info = "Clear user data?"
-	Reboot.InfoColor = color.RGBA{0, 255, 0, 255}
-	Reboot.ClickFunc = []func(){ClearUserData_Do, func() {
-		CurrentList = Recovery_Create()
-		CurrentList.Init()
-	}}
-
-	Reboot.Lines = []vscreen.Line{
-		{
-			Text:  "Yes",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "No",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-	}
-
-	return &Reboot
-}
-
-func DetectButtonPress() {
-	// for functions which show on screen, but aren't lists. hangs ListenToBody, returns when button is presed
-	for {
-		frame := GetFrame()
-		if frame.ButtonState {
-			return
-		}
-		time.Sleep(time.Millisecond * 10)
-	}
-
-}
-
 func Recovery_Create() *List {
 	var Test List
 
-	Test.Info = "impl"
+	Test.Info = "If you see this, logging has failed"
 	Test.InfoColor = color.RGBA{0, 255, 0, 255}
-
-	Test.ClickFunc = []func(){
-		StartAnki_Confirm,
-	}
-
-	Test.Lines = []vscreen.Line{
-		{
-			Text:  "Watch logs",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-	}
-
 	return &Test
-}
-
-func Confirm_Create_Anki(do func(), origList List) *List {
-	// "ARE YOU SURE?"
-	var Test List
-
-	Test.Info = "See logs?"
-	Test.InfoColor = color.RGBA{0, 255, 0, 255}
-	Test.ClickFunc = []func(){do, func() {
-		CurrentList = &origList
-		CurrentList.Init()
-	}}
-
-	Test.Lines = []vscreen.Line{
-		{
-			Text:  "Yes",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "No",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-	}
-
-	return &Test
-}
-
-func Confirm_Install_OTA(do func(), origList List) *List {
-	// "ARE YOU SURE?"
-	var Test List
-
-	Test.Info = "Install this OTA?"
-	Test.InfoColor = color.RGBA{0, 255, 0, 255}
-	Test.ClickFunc = []func(){do, func() {
-		CurrentList = &origList
-		CurrentList.Init()
-	}}
-
-	Test.Lines = []vscreen.Line{
-		{
-			Text:  "Yes",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-		{
-			Text:  "No",
-			Color: color.RGBA{255, 255, 255, 255},
-		},
-	}
-
-	return &Test
-}
-
-func TestIfBodyWorking() {
-	// if body isn't working, start anki processes
-	err := vbody.InitSpine()
-	if err != nil {
-		vscreen.InitLCD()
-		vscreen.BlackOut()
-		data := vscreen.CreateTextImage("Error! Not able to communicate with the body. Starting Anki processes...")
-		vscreen.SetScreen(data)
-		vbody.StopSpine()
-		vscreen.StopLCD()
-		exec.Command("/bin/bash", "-c", "systemctl start anki-robot.target").Run()
-		os.Exit(0)
-	} else {
-		BodyInited = true
-	}
 }
 
 func main() {
@@ -452,10 +247,8 @@ func main() {
 	vscreen.BlackOut()
 	ScreenInited = true
 
-	StartAnki()
+	RandomLights()
+
+	StartLogging()
 	CurrentList.Init()
-	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_OFF, vbody.LED_OFF)
-	fmt.Println("started")
-	InitFrameGetter()
-	ListenToBody()
 }

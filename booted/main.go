@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kercre123/vector-gobot/pkg/vbody"
-	"github.com/kercre123/vector-gobot/pkg/vscreen"
+	"github.com/os-vector/vector-gobot/pkg/vbody"
+	"github.com/os-vector/vector-gobot/pkg/vscreen"
 )
 
 var screenText []string = []string{
