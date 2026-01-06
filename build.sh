@@ -26,10 +26,10 @@ cp vector-gobot/build/libvector-gobot.so build/
 CC=${TC}clang \
 CXX=${TC}clang++ \
 CGO_CFLAGS="-I$(pwd)/vector-gobot/include" \
-CGO_LDFLAGS="-L$(pwd)/build -Wl,-rpath,/anki/lib" \
+CGO_LDFLAGS="-L$(pwd)/build" \
 GOARCH=arm \
 GOARM=7 \
 CGO_ENABLED=1 \
 go build \
--ldflags "-s -w -r /anki/lib" \
+-ldflags "-s -w" \
 -o build/vic-verbose
