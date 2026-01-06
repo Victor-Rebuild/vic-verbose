@@ -33,15 +33,6 @@ type List struct {
 	inited    bool
 }
 
-func (c *List) MoveDown() {
-	if c.Len == c.Position {
-		c.Position = 1
-	} else {
-		c.Position = c.Position + 1
-	}
-	c.UpdateScreen()
-}
-
 func (c *List) UpdateScreen() {
 	var linesShow []vscreen.Line
 	// if info, have list go to bottom
@@ -96,98 +87,8 @@ func (c *List) Init() {
 	c.inited = true
 }
 
-func ListenToBody() {
-	if !CurrentList.inited {
-		fmt.Println("error: init list before listening dummy")
-		os.Exit(1)
-	}
-	for {
-		if StopListening {
-			fmt.Println("not listening anymore")
-			StopListening = false
-			return
-		}
-		if !CurrentList.inited || HangBody {
-			for {
-				time.Sleep(time.Second / 5)
-				if CurrentList.inited && !HangBody {
-					break
-				}
-			}
-		}
-		frame := GetFrame()
-		if frame.ButtonState {
-			CurrentList.ClickFunc[CurrentList.Position-1]()
-			time.Sleep(time.Second / 3)
-		}
-		for i, enc := range frame.Encoders {
-			if i > 1 {
-				// only read wheels
-				break
-			}
-			if enc.DLT < -1 {
-				stopTimer := false
-				stopWatch := false
-				go func() {
-					timer := 0
-					for {
-						if StopListening {
-							fmt.Println("not listening anymore")
-							StopListening = false
-							return
-						}
-						if stopTimer {
-							break
-						}
-						if timer == 30 {
-							CurrentList.MoveDown()
-							stopWatch = true
-							break
-						}
-						timer = timer + 1
-						time.Sleep(time.Millisecond * 10)
-					}
-				}()
-				for {
-					if StopListening {
-						fmt.Println("not listening anymore")
-						StopListening = false
-						return
-					}
-					frame = GetFrame()
-					if stopWatch {
-						break
-					}
-					if frame.Encoders[i].DLT == 0 {
-						stopTimer = true
-						break
-					}
-				}
-			}
-		}
-		time.Sleep(time.Millisecond * 10)
-	}
-}
-
 func StartLogging() {
-	// scrnData := vscreen.CreateTextImage("To come back to this menu, go to CCIS and select `MENU` or `BACK TO MENU`. Starting in 3 seconds...")
-	// vscreen.SetScreen(scrnData)
-	// time.Sleep(time.Second * 4)
-	// scrnData = vscreen.CreateTextImage("Stopping body...")
-	// vscreen.SetScreen(scrnData)
-	// CurrentList.inited = false
-	// time.Sleep(time.Second / 3)
-	// StopFrameGetter()
-	// vbody.StopSpine()
-	// scrnData := vscreen.CreateTextImage("Grabbing logs")
-	// vscreen.SetScreen(scrnData)
-	// vscreen.StopLCD()
-	// ScreenInited = false
-	// BodyInited = false
-	time.Sleep(time.Second / 2)
-	// exec.Command("/bin/bash", "-c", "systemctl start anki-robot.target").Run()
-	// watch logcat for clear user data screen // journalctl since we don't have logcat
-	cmd := exec.Command("journalctl", "-f", "-n", "10")
+	cmd := exec.Command("journalctl", "-f", "-n", "600")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	scanner := bufio.NewScanner(stdout)
@@ -224,11 +125,11 @@ func RandomLights() {
 	vbody.SetLEDs(color1, color2, color3)
 }
 
-func Recovery_Create() *List {
+func Failed() *List {
 	var Test List
 
 	Test.Info = "If you see this, logging has failed"
-	Test.InfoColor = color.RGBA{0, 255, 0, 255}
+	Test.InfoColor = color.RGBA{255, 0, 0, 255}
 	return &Test
 }
 
@@ -236,15 +137,17 @@ func main() {
 	vbody.InitSpine()
 	BodyInited = true
 
-	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_OFF, vbody.LED_RED)
-	time.Sleep(time.Second)
-	vbody.SetLEDs(vbody.LED_OFF, vbody.LED_GREEN, vbody.LED_RED)
-	time.Sleep(time.Second)
-	vbody.SetLEDs(vbody.LED_BLUE, vbody.LED_GREEN, vbody.LED_RED)
-	CurrentList = Recovery_Create()
-
+	RandomLights()
+	time.Sleep(time.Second / 2)
+	RandomLights()
+	time.Sleep(time.Second / 2)
+	RandomLights()
+	CurrentList = Failed()
+	RandomLights()
 	vscreen.InitLCD()
+	RandomLights()
 	vscreen.BlackOut()
+	RandomLights()
 	ScreenInited = true
 
 	RandomLights()

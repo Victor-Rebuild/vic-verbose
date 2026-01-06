@@ -9,8 +9,8 @@ else
 sudo rm -rf build
 ./build.sh
 #ssh -i "$1" root@"$2" 'systemctl stop vic-menu && rm /data/vic-menu'
-#ssh -i "$1" root@"$2" 'systemctl stop vic-menu && rm /data/vic-menu/vic-menu'
-scp -i "$1" -O build/vic-menu root@"$2":/data/vic-menu/vic-menu
+ssh -i "$1" root@"$2" 'mount -o rw,remount /'
+scp -i "$1" -O build/vic-menu root@"$2":/anki/bin/vic-bootAnim 
 scp -i "$1" -O build/libvector-gobot.so root@"$2":/anki/lib
 #scp -i "$1" -O export-gpio root@"$2":/sbin
 #scp -i "$1" -O ota-list.json root@"$2":/data/vic-menu/ota-list.json
