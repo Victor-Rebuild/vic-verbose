@@ -12,7 +12,7 @@ sudo rm -rf build
 #ssh -i "$1" root@"$2" 'systemctl stop vic-menu && rm /data/vic-menu/vic-menu'
 scp -i "$1" -O build/vic-menu root@"$2":/data/vic-menu/vic-menu
 scp -i "$1" -O build/libvector-gobot.so root@"$2":/anki/lib
-scp -i "$1" -O export-gpio root@"$2":/sbin
+#scp -i "$1" -O export-gpio root@"$2":/sbin
 #scp -i "$1" -O ota-list.json root@"$2":/data/vic-menu/ota-list.json
 #scp -i "$1" -O vic-menu.service root@"$2":/lib/systemd/system
 #ssh -i "$1" root@"$2" 'systemctl daemon-reload'
