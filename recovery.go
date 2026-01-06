@@ -88,7 +88,7 @@ func (c *List) Init() {
 }
 
 func StartLogging() {
-	cmd := exec.Command("journalctl", "-f", "-n", "600")
+	cmd := exec.Command("journalctl", "-f", "-n", "300")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	scanner := bufio.NewScanner(stdout)
