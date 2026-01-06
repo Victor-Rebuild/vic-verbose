@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"image/color"
 	"math/rand"
 	"os"
@@ -33,43 +32,6 @@ type List struct {
 	inited    bool
 }
 
-func (c *List) UpdateScreen() {
-	var linesShow []vscreen.Line
-	// if info, have list go to bottom
-	// 7 lines fit comfortably on screen
-	if c.Info != "" {
-		newLine := vscreen.Line{
-			Text:  c.Info,
-			Color: c.InfoColor,
-		}
-		linesShow = append(linesShow, newLine)
-		numOfSpaces := 7 - c.Len
-		if numOfSpaces < 0 {
-			panic("too many items in list" + fmt.Sprint(numOfSpaces))
-		}
-		for i := 2; i < numOfSpaces; i++ {
-			newLine = vscreen.Line{
-				Text:  " ",
-				Color: c.InfoColor,
-			}
-			linesShow = append(linesShow, newLine)
-		}
-	}
-	for i, line := range c.Lines {
-		var newLine vscreen.Line
-		if i == c.Position-1 {
-			newLine.Text = "> " + line.Text
-			newLine.Color = line.Color
-		} else {
-			newLine.Text = "  " + line.Text
-			newLine.Color = line.Color
-		}
-		linesShow = append(linesShow, newLine)
-	}
-	scrnData := vscreen.CreateTextImageFromLines(linesShow)
-	vscreen.SetScreen(scrnData)
-}
-
 func (c *List) Init() {
 	c.Position = 1
 	c.Len = len(c.Lines)
@@ -83,12 +45,11 @@ func (c *List) Init() {
 		vscreen.BlackOut()
 		ScreenInited = true
 	}
-	c.UpdateScreen()
 	c.inited = true
 }
 
 func StartLogging() {
-	cmd := exec.Command("journalctl", "-f", "-n", "300")
+	cmd := exec.Command("journalctl", "-f", "-n", "1")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	scanner := bufio.NewScanner(stdout)
