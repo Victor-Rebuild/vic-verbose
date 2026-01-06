@@ -32,4 +32,4 @@ GOARM=7 \
 CGO_ENABLED=1 \
 go build \
 -ldflags "-s -w -r /anki/lib" \
--o build/vic-menu
+-o build/vic-verbose
