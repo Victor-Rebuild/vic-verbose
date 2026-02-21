@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/os-vector/vector-gobot/pkg/vbody"
 	"github.com/os-vector/vector-gobot/pkg/vscreen"
@@ -56,12 +55,17 @@ func StartLogging() {
 	for scanner.Scan() {
 		line := scanner.Text()
 
+		if idx := strings.Index(line, "Vector"); idx != -1 {
+			line = line[idx:]
+		}
+
 		scrnData := vscreen.CreateTextImage(line)
 
 		vscreen.SetScreen(scrnData)
 
-		RandomLights()
+		// RandomLights()
 		if strings.Contains(line, "Starting Victor init") {
+			vbody.SetLEDs(vbody.LED_BLUE, vbody.LED_BLUE, vbody.LED_BLUE)
 			break
 		}
 	}
@@ -98,20 +102,11 @@ func main() {
 	vbody.InitSpine()
 	BodyInited = true
 
-	RandomLights()
-	time.Sleep(time.Second / 2)
-	RandomLights()
-	time.Sleep(time.Second / 2)
-	RandomLights()
+	vbody.SetLEDs(vbody.LED_GREEN, vbody.LED_GREEN, vbody.LED_GREEN)
 	CurrentList = Failed()
-	RandomLights()
 	vscreen.InitLCD()
-	RandomLights()
 	vscreen.BlackOut()
-	RandomLights()
 	ScreenInited = true
-
-	RandomLights()
 
 	StartLogging()
 	CurrentList.Init()
